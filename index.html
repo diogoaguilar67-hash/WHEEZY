@@ -1,0 +1,503 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Termômetro da Segurança Psicológica</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/@emailjs/browser@3/dist/email.min.js"></script>
+    
+    <style>
+        :root {
+            --primary: #2980b9;
+            --secondary: #27ae60;
+            --bg-color: #f0f4f8;
+            --card-bg: #ffffff;
+            --text-dark: #2c3e50;
+            --text-light: #7f8c8d;
+            --danger: #e74c3c;
+            --warning: #f1c40f;
+            --success: #2ecc71;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Inter', sans-serif;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-dark);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            background: var(--card-bg);
+            max-width: 800px;
+            width: 100%;
+            border-radius: 12px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.05);
+            overflow: hidden;
+            position: relative;
+        }
+
+        /* Header & Progress */
+        .header {
+            background: linear-gradient(135deg, var(--primary), var(--secondary));
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+
+        .progress-container {
+            background: #e0e0e0;
+            height: 8px;
+            width: 100%;
+        }
+
+        .progress-bar {
+            height: 100%;
+            background: var(--secondary);
+            width: 0%;
+            transition: width 0.4s ease;
+        }
+
+        /* Content Areas */
+        .step {
+            display: none;
+            padding: 40px;
+            animation: fadeIn 0.5s ease;
+        }
+
+        .step.active {
+            display: block;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        h2 { margin-bottom: 15px; color: var(--primary); }
+        p { margin-bottom: 20px; color: var(--text-light); line-height: 1.6; }
+
+        /* Form Elements */
+        .question-block { margin-bottom: 30px; }
+        .question-title { font-weight: 600; margin-bottom: 15px; font-size: 1.1rem; }
+        
+        .scale-group {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        @media(min-width: 600px) {
+            .scale-group { flex-direction: row; justify-content: space-between; }
+        }
+
+        .radio-btn {
+            flex: 1;
+            position: relative;
+        }
+
+        .radio-btn input { display: none; }
+        
+        .radio-btn label {
+            display: block;
+            padding: 12px 5px;
+            text-align: center;
+            background: var(--bg-color);
+            border: 2px solid transparent;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 0.9rem;
+            transition: all 0.3s;
+        }
+
+        .radio-btn input:checked + label {
+            background: rgba(41, 128, 185, 0.1);
+            border-color: var(--primary);
+            color: var(--primary);
+            font-weight: 600;
+        }
+
+        textarea {
+            width: 100%;
+            padding: 15px;
+            border: 1px solid #ccc;
+            border-radius: 8px;
+            resize: vertical;
+            min-height: 100px;
+            font-family: inherit;
+        }
+
+        /* Buttons */
+        .btn-container {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 20px;
+        }
+
+        button {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 1rem;
+            transition: opacity 0.3s;
+        }
+
+        button:hover { opacity: 0.9; }
+        .btn-next { background: var(--primary); color: white; margin-left: auto; }
+        .btn-prev { background: #95a5a6; color: white; }
+        .btn-action { background: var(--secondary); color: white; margin-top: 10px; width: 100%; display: flex; align-items: center; justify-content: center; gap: 10px;}
+        .btn-reload { background: #34495e; color: white; margin-top: 10px; width: 100%; display: flex; align-items: center; justify-content: center; gap: 10px; }
+
+        /* Results */
+        .result-box {
+            text-align: center;
+            padding: 30px;
+            border-radius: 12px;
+            margin-bottom: 20px;
+            color: white;
+        }
+        .chart-container {
+            position: relative;
+            height: 250px;
+            width: 100%;
+            margin-bottom: 20px;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container" id="capture-area">
+    <div class="progress-container"><div class="progress-bar" id="progressBar"></div></div>
+    
+    <div class="header">
+        <h1><i class="fa-solid fa-temperature-half"></i> Termômetro da Segurança Psicológica</h1>
+    </div>
+
+    <div class="step active" id="step-0">
+        <h2>Bem-vindo(a)</h2>
+        <p>Este formulário é <strong>confidencial e anônimo</strong>. Responda com total franqueza. Para cada frase a seguir, marque a opção que melhor representa o seu dia a dia na empresa.</p>
+        <p><strong>Escala:</strong><br>1 – Discordo Totalmente <br>2 – Discordo Parcialmente <br>3 – Neutro <br>4 – Concordo Parcialmente <br>5 – Concordo Totalmente</p>
+        <div class="btn-container">
+            <button class="btn-next" onclick="nextStep(1)">Iniciar Pesquisa <i class="fa-solid fa-arrow-right"></i></button>
+        </div>
+    </div>
+
+    <div class="step" id="step-1">
+        <h2><i class="fa-solid fa-brain"></i> Bloco 1: Tolerância ao Erro e Vulnerabilidade</h2>
+        
+        <div class="question-block" data-id="q1" data-inverted="true">
+            <div class="question-title">1. Se você cometer um erro nesta equipe, isso costuma ser apontado ou usado contra você no futuro?</div>
+            <div class="scale-group" id="q1-scale"></div>
+        </div>
+
+        <div class="question-block" data-id="q2" data-inverted="false">
+            <div class="question-title">2. É fácil e seguro admitir para o seu gestor ou colegas que você não sabe como fazer alguma tarefa?</div>
+            <div class="scale-group" id="q2-scale"></div>
+        </div>
+
+        <div class="question-block" data-id="q3" data-inverted="true">
+            <div class="question-title">3. Quando algo dá errado no setor, o foco principal do time é encontrar o culpado em vez de focar no aprendizado?</div>
+            <div class="scale-group" id="q3-scale"></div>
+        </div>
+
+        <div class="btn-container">
+            <button class="btn-prev" onclick="prevStep(0)">Anterior</button>
+            <button class="btn-next" onclick="nextStep(2)">Próximo <i class="fa-solid fa-arrow-right"></i></button>
+        </div>
+    </div>
+
+    <div class="step" id="step-2">
+        <h2><i class="fa-solid fa-handshake"></i> Bloco 2: Colaboração e Abertura</h2>
+        
+        <div class="question-block" data-id="q4" data-inverted="false">
+            <div class="question-title">4. Os membros desta equipe são capazes de trazer à tona problemas, preocupações e temas difíceis sem medo de retaliação?</div>
+            <div class="scale-group" id="q4-scale"></div>
+        </div>
+
+        <div class="question-block" data-id="q5" data-inverted="true">
+            <div class="question-title">5. Você sente que existe um clima de competição excessiva entre as pessoas da equipe, prejudicando a ajuda mútua?</div>
+            <div class="scale-group" id="q5-scale"></div>
+        </div>
+
+        <div class="question-block" data-id="q6" data-inverted="false">
+            <div class="question-title">6. É seguro arriscar, apresentar novas ideias ou sugerir mudanças nos processos atuais da empresa?</div>
+            <div class="scale-group" id="q6-scale"></div>
+        </div>
+
+        <div class="btn-container">
+            <button class="btn-prev" onclick="prevStep(1)">Anterior</button>
+            <button class="btn-next" onclick="nextStep(3)">Próximo <i class="fa-solid fa-arrow-right"></i></button>
+        </div>
+    </div>
+
+    <div class="step" id="step-3">
+        <h2><i class="fa-solid fa-shield-heart"></i> Bloco 3: Respeito e Valorização</h2>
+        
+        <div class="question-block" data-id="q7" data-inverted="true">
+            <div class="question-title">7. As pessoas desta equipe às vezes rejeitam ou desvalorizam os outros por terem opiniões ou pensamentos diferentes?</div>
+            <div class="scale-group" id="q7-scale"></div>
+        </div>
+
+        <div class="question-block" data-id="q8" data-inverted="false">
+            <div class="question-title">8. Você sente que suas habilidades, talentos únicos e perspectivas são valorizados e aproveitados pela liderança?</div>
+            <div class="scale-group" id="q8-scale"></div>
+        </div>
+
+        <div class="btn-container">
+            <button class="btn-prev" onclick="prevStep(2)">Anterior</button>
+            <button class="btn-next" onclick="nextStep(4)">Próximo <i class="fa-solid fa-arrow-right"></i></button>
+        </div>
+    </div>
+
+    <div class="step" id="step-4">
+        <h2><i class="fa-solid fa-comment-dots"></i> Bloco 4: Percepções Qualitativas</h2>
+        
+        <div class="question-block">
+            <div class="question-title">Em termos práticos, o que mais bloqueia ou dá medo em você na hora de dar uma ideia ou apontar um erro na empresa?</div>
+            <textarea id="qa1" placeholder="Sua resposta..."></textarea>
+        </div>
+
+        <div class="question-block">
+            <div class="question-title">Se você pudesse sugerir uma única mudança imediata no comportamento dos gestores para tornar o ambiente mais acolhedor, qual seria?</div>
+            <textarea id="qa2" placeholder="Sua resposta..."></textarea>
+        </div>
+
+        <div class="btn-container">
+            <button class="btn-prev" onclick="prevStep(3)">Anterior</button>
+            <button class="btn-next" style="background-color: var(--secondary);" onclick="calculateResults()">Finalizar e Ver Resultado <i class="fa-solid fa-check"></i></button>
+        </div>
+    </div>
+
+    <div class="step" id="step-5">
+        <h2><i class="fa-solid fa-chart-pie"></i> Seu Resultado</h2>
+        
+        <div class="chart-container">
+            <canvas id="gaugeChart"></canvas>
+        </div>
+
+        <div id="result-message" class="result-box"></div>
+        
+        <p style="text-align: center; font-weight: 600; margin-top: 20px;">"Obrigado por contribuir para um ambiente de trabalho mais seguro, colaborativo e humano."</p>
+
+        <div style="margin-top: 30px;">
+            <button class="btn-action" onclick="exportPDF()"><i class="fa-solid fa-file-pdf"></i> Baixar Relatório (PDF)</button>
+            <button class="btn-action" style="background: #27ae60;" onclick="exportExcel()"><i class="fa-solid fa-file-excel"></i> Exportar Dados (Excel)</button>
+            <button class="btn-reload" onclick="restartQuiz()"><i class="fa-solid fa-rotate-left"></i> Responder Novamente</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    // CREDENCIAIS DO EMAILJS CONFIGURADAS DEFINITIVAMENTE
+    const EMAILJS_PUBLIC_KEY = "RoICWrANUEU93WU2w"; 
+    const EMAILJS_SERVICE_ID = "service_yxsmacw"; 
+    const EMAILJS_TEMPLATE_ID = "template_default"; 
+
+    // Inicialização do EmailJS
+    (function(){
+        emailjs.init(EMAILJS_PUBLIC_KEY); 
+    })();
+
+    const scales = ["1", "2", "3", "4", "5"];
+    const labels = ["Discordo Totalmente", "Discordo Parcialmente", "Neutro", "Concordo Parcialmente", "Concordo Totalmente"];
+    
+    document.querySelectorAll('.scale-group').forEach(group => {
+        const qId = group.parentElement.getAttribute('data-id');
+        let html = '';
+        for(let i=0; i<5; i++) {
+            html += `
+            <div class="radio-btn">
+                <input type="radio" name="${qId}" id="${qId}_${scales[i]}" value="${scales[i]}">
+                <label for="${qId}_${scales[i]}">${scales[i]}<br><small style="font-size:0.7rem">${labels[i]}</small></label>
+            </div>`;
+        }
+        group.innerHTML = html;
+    });
+
+    const totalSteps = 5;
+    function updateProgress(step) {
+        const percent = (step / totalSteps) * 100;
+        document.getElementById('progressBar').style.width = percent + '%';
+    }
+
+    // Avanço livre de telas sem travar por falta de marcação
+    function nextStep(step) {
+        document.querySelectorAll('.step').forEach(el => el.classList.remove('active'));
+        const nextStepDiv = document.getElementById('step-' + step);
+        if (nextStepDiv) {
+            nextStepDiv.classList.add('active');
+            updateProgress(step);
+        }
+    }
+
+    function prevStep(step) {
+        document.querySelectorAll('.step').forEach(el => el.classList.remove('active'));
+        const prevStepDiv = document.getElementById('step-' + step);
+        if (prevStepDiv) {
+            prevStepDiv.classList.add('active');
+            updateProgress(step);
+        }
+    }
+
+    let finalScore = 0;
+    let gaugeChart = null;
+
+    function calculateResults() {
+        finalScore = 0;
+        const questions = document.querySelectorAll('.question-block[data-id]');
+        
+        for (let q of questions) {
+            const id = q.getAttribute('data-id');
+            const selected = document.querySelector(`input[name="${id}"]:checked`);
+            
+            // Se não houver resposta marcada (testes rápidos), assume valor neutro 3 para não quebrar a conta
+            const val = selected ? parseInt(selected.value) : 3;
+            const inverted = q.getAttribute('data-inverted') === 'true';
+            
+            if(inverted) {
+                finalScore += (6 - val);
+            } else {
+                finalScore += val;
+            }
+        }
+
+        renderResult(finalScore);
+        sendEmailReport(finalScore); 
+        nextStep(5); // Vai direto para os resultados sem interrupções
+    }
+
+    function renderResult(score) {
+        const resultBox = document.getElementById('result-message');
+        let color, text, icon;
+
+        if(score >= 8 && score <= 20) {
+            color = '#e74c3c';
+            icon = '🔴';
+            text = "Ambiente Crítico: Sua percepção indica um ambiente com baixa segurança psicológica. Existem sinais de medo, dificuldade para expor opiniões e receio de cometer erros.";
+        } else if(score >= 21 && score <= 30) {
+            color = '#f1c40f';
+            icon = '🟡';
+            text = "Ambiente em Desenvolvimento: Sua equipe apresenta características positivas, mas ainda existem barreiras que podem dificultar a colaboração plena.";
+        } else {
+            color = '#2ecc71';
+            icon = '🟢';
+            text = "Ambiente Saudável: Sua percepção indica um ambiente com forte segurança psicológica. As pessoas tendem a se sentir respeitadas, ouvidas e seguras.";
+        }
+
+        resultBox.style.backgroundColor = color;
+        resultBox.innerHTML = `<h3>${icon} Pontuação: ${score}/40</h3><p style="color:white; margin:0;">${text}</p>`;
+
+        drawGauge(score, color);
+    }
+
+    function drawGauge(score, color) {
+        const ctx = document.getElementById('gaugeChart').getContext('2d');
+        if(gaugeChart) gaugeChart.destroy();
+
+        const percent = ((score - 8) / 32) * 100;
+
+        gaugeChart = new Chart(ctx, {
+            type: 'doughnut',
+            data: {
+                labels: ['Pontuação', 'Restante'],
+                datasets: [{
+                    data: [percent, 100 - percent],
+                    backgroundColor: [color, '#e0e0e0'],
+                    borderWidth: 0
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                rotation: -90,
+                circumference: 180,
+                cutout: '75%',
+                plugins: {
+                    legend: { display: false },
+                    tooltip: { enabled: false }
+                }
+            }
+        });
+    }
+
+    function sendEmailReport(score) {
+        const templateParams = {
+            to_email: 'diogoaguilar67@gmail.com',
+            score: score,
+            feedback_1: document.getElementById('qa1').value || "Não respondido",
+            feedback_2: document.getElementById('qa2').value || "Não respondido"
+        };
+
+        console.log("Tentando enviar e-mail de relatório...", templateParams);
+
+        // Envia silenciosamente para não interromper ou exibir caixas de erro na tela
+        emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_ID, templateParams)
+        .then(function(response) { 
+            console.log('E-mail despachado!', response.status, response.text); 
+        }, function(error) { 
+            console.error('Erro de envio do EmailJS:', error); 
+        });
+    }
+
+    function restartQuiz() {
+        document.querySelectorAll('input[type="radio"]').forEach(radio => radio.checked = false);
+        document.getElementById('qa1').value = "";
+        document.getElementById('qa2').value = "";
+        finalScore = 0;
+        if(gaugeChart) {
+            gaugeChart.destroy();
+            gaugeChart = null;
+        }
+        nextStep(0);
+    }
+
+    function exportPDF() {
+        const element = document.getElementById('capture-area');
+        const opt = {
+            margin:       1,
+            filename:     'Termometro_Seguranca_Psicologica.pdf',
+            image:        { type: 'jpeg', quality: 0.98 },
+            html2canvas:  { scale: 2 },
+            jsPDF:        { unit: 'in', format: 'a4', orientation: 'portrait' }
+        };
+        html2pdf().set(opt).from(element).save();
+    }
+
+    function exportExcel() {
+        const data = [["Pergunta", "Resposta (Original)", "Invertida?"]];
+        document.querySelectorAll('.question-block[data-id]').forEach(q => {
+            const id = q.getAttribute('data-id');
+            const text = q.querySelector('.question-title').innerText;
+            const inverted = q.getAttribute('data-inverted') === 'true' ? "Sim" : "Não";
+            const radioSel = document.querySelector(`input[name="${id}"]:checked`);
+            const val = radioSel ? radioSel.value : "Não respondido";
+            data.push([text, val, inverted]);
+        });
+        data.push(["O que bloqueia dar ideias?", document.getElementById('qa1').value || "Em branco", "N/A"]);
+        data.push(["Sugestão para gestores", document.getElementById('qa2').value || "Em branco", "N/A"]);
+        data.push(["Pontuação Final", finalScore, "N/A"]);
+
+        const ws = XLSX.utils.aoa_to_sheet(data);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, "Resultados");
+        XLSX.writeFile(wb, "Pesquisa_Seguranca_Psicologica.xlsx");
+    }
+</script>
+</body>
+</html>
